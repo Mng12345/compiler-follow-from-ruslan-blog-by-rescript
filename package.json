@@ -1,0 +1,14 @@
+{
+  "name": "compiler-follow-from-ruslan-blog-by-rescript",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "readline-sync": "^1.4.10",
+    "rescript": "^9.1.4"
+  },
+  "scripts": {
+    "re:start": "rescript build -w",
+    "part1": "node ./src/Part1.bs.js"
+  }
+}
