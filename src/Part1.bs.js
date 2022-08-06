@@ -103,8 +103,8 @@ function main(param) {
   while(true) {
     try {
       var text = ReadlineSync.question("calc>");
-      var integer = make(text);
-      var value = expr(integer);
+      var interpreter = make(text);
+      var value = expr(interpreter);
       console.log(value);
     }
     catch (raw_exn){

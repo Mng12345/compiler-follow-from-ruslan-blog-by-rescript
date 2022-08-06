@@ -55,8 +55,8 @@ let main = () => {
   while true {
     try {
       let text = ReadlineSync.question("calc>")
-      let integer = Interpreter.make(text)
-      let value = integer->Interpreter.expr
+      let interpreter = Interpreter.make(text)
+      let value = interpreter->Interpreter.expr
       Js.log(value)
     } catch {
     | exn => Js.log2(`error: `, exn)

@@ -9,6 +9,7 @@
   },
   "scripts": {
     "re:start": "rescript build -w",
-    "part1": "node ./src/Part1.bs.js"
+    "part1": "node ./src/Part1.bs.js",
+    "part2": "node ./src/Part2.bs.js"
   }
 }
