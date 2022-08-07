@@ -3,6 +3,7 @@
 
 var Belt_Int = require("rescript/lib/js/belt_Int.js");
 var Belt_List = require("rescript/lib/js/belt_List.js");
+var Caml_int32 = require("rescript/lib/js/caml_int32.js");
 var ReadlineSync = require("./ReadlineSync.bs.js");
 var Caml_exceptions = require("rescript/lib/js/caml_exceptions.js");
 var Caml_js_exceptions = require("rescript/lib/js/caml_js_exceptions.js");
@@ -16,7 +17,13 @@ var Token = {
   Operator: Operator
 };
 
+var TokenNode = {};
+
 var WrongExpression = /* @__PURE__ */Caml_exceptions.create("Part2.Interpreter.WrongExpression");
+
+var NeverHappenedInFilteredTokens = /* @__PURE__ */Caml_exceptions.create("Part2.Interpreter.NeverHappenedInFilteredTokens");
+
+var NoTokens = /* @__PURE__ */Caml_exceptions.create("Part2.Interpreter.NoTokens");
 
 function make(text) {
   return {
@@ -36,6 +43,12 @@ function getNextSingleToken(interpreter) {
     case " " :
         interpreter.pos = interpreter.pos + 1 | 0;
         return /* Whitespace */1;
+    case "*" :
+        interpreter.pos = interpreter.pos + 1 | 0;
+        return {
+                TAG: /* Operator */1,
+                _0: /* Multiply */2
+              };
     case "+" :
         interpreter.pos = interpreter.pos + 1 | 0;
         return {
@@ -47,6 +60,12 @@ function getNextSingleToken(interpreter) {
         return {
                 TAG: /* Operator */1,
                 _0: /* Subtract */1
+              };
+    case "/" :
+        interpreter.pos = interpreter.pos + 1 | 0;
+        return {
+                TAG: /* Operator */1,
+                _0: /* Divide */3
               };
     case "0" :
     case "1" :
@@ -120,104 +139,184 @@ function extractTokens(interpreter) {
   return Belt_List.reverse(extractTokens_(interpreter, /* [] */0));
 }
 
-function expr(interpreter) {
-  var tokens = Belt_List.keep(extractTokens(interpreter), (function (token) {
-          if (typeof token === "number") {
-            return token === 0;
-          } else {
-            return true;
-          }
-        }));
-  var left = Belt_List.get(tokens, 0);
-  var operator = Belt_List.get(tokens, 1);
-  var right = Belt_List.get(tokens, 2);
-  var end = Belt_List.get(tokens, 3);
-  if (left !== undefined) {
-    if (typeof left === "number") {
-      throw {
-            RE_EXN_ID: WrongExpression,
-            Error: new Error()
-          };
-    }
-    if (left.TAG === /* Integer */0) {
-      if (operator !== undefined) {
-        if (typeof operator === "number") {
+function execute(tokens) {
+  var makeNode = function (_rootNode, _tokens) {
+    while(true) {
+      var tokens = _tokens;
+      var rootNode = _rootNode;
+      if (!tokens) {
+        return rootNode;
+      }
+      var t = tokens.tl;
+      var h = tokens.hd;
+      var match = rootNode.value;
+      if (typeof match === "number") {
+        if (match === /* Eof */0) {
           throw {
-                RE_EXN_ID: WrongExpression,
+                RE_EXN_ID: NeverHappenedInFilteredTokens,
                 Error: new Error()
               };
         }
-        if (operator.TAG === /* Operator */1) {
-          if (right !== undefined) {
-            if (typeof right === "number") {
+        throw {
+              RE_EXN_ID: NeverHappenedInFilteredTokens,
+              Error: new Error()
+            };
+      } else if (match.TAG === /* Integer */0) {
+        if (typeof h === "number") {
+          if (h === /* Eof */0) {
+            return rootNode;
+          }
+          throw {
+                RE_EXN_ID: NeverHappenedInFilteredTokens,
+                Error: new Error()
+              };
+        } else {
+          if (h.TAG === /* Integer */0) {
+            throw {
+                  RE_EXN_ID: NeverHappenedInFilteredTokens,
+                  Error: new Error()
+                };
+          }
+          _tokens = t;
+          _rootNode = {
+            value: h,
+            left: rootNode.value,
+            right: undefined
+          };
+          continue ;
+        }
+      } else {
+        if (typeof h === "number") {
+          throw {
+                RE_EXN_ID: NeverHappenedInFilteredTokens,
+                Error: new Error()
+              };
+        }
+        if (h.TAG === /* Integer */0) {
+          var right = h._0;
+          var left = rootNode.left;
+          if (left !== undefined) {
+            if (typeof left === "number") {
               throw {
-                    RE_EXN_ID: WrongExpression,
+                    RE_EXN_ID: NeverHappenedInFilteredTokens,
                     Error: new Error()
                   };
             }
-            if (right.TAG === /* Integer */0) {
-              if (end !== undefined) {
-                if (end === 0) {
-                  var right$1 = right._0;
-                  var left$1 = left._0;
-                  if (operator._0) {
-                    return left$1 - right$1 | 0;
-                  } else {
-                    return left$1 + right$1 | 0;
-                  }
-                }
-                throw {
-                      RE_EXN_ID: WrongExpression,
-                      Error: new Error()
+            if (left.TAG === /* Integer */0) {
+              var left$1 = left._0;
+              var tmp;
+              switch (match._0) {
+                case /* Plus */0 :
+                    tmp = {
+                      value: {
+                        TAG: /* Integer */0,
+                        _0: left$1 + right | 0
+                      },
+                      left: undefined,
+                      right: undefined
                     };
+                    break;
+                case /* Subtract */1 :
+                    tmp = {
+                      value: {
+                        TAG: /* Integer */0,
+                        _0: left$1 - right | 0
+                      },
+                      left: undefined,
+                      right: undefined
+                    };
+                    break;
+                case /* Multiply */2 :
+                    tmp = {
+                      value: {
+                        TAG: /* Integer */0,
+                        _0: Math.imul(left$1, right)
+                      },
+                      left: undefined,
+                      right: undefined
+                    };
+                    break;
+                case /* Divide */3 :
+                    tmp = {
+                      value: {
+                        TAG: /* Integer */0,
+                        _0: Caml_int32.div(left$1, right)
+                      },
+                      left: undefined,
+                      right: undefined
+                    };
+                    break;
+                
               }
-              throw {
-                    RE_EXN_ID: WrongExpression,
-                    Error: new Error()
-                  };
+              _tokens = t;
+              _rootNode = tmp;
+              continue ;
             }
             throw {
-                  RE_EXN_ID: WrongExpression,
+                  RE_EXN_ID: NeverHappenedInFilteredTokens,
                   Error: new Error()
                 };
           } else {
             throw {
-                  RE_EXN_ID: WrongExpression,
+                  RE_EXN_ID: NeverHappenedInFilteredTokens,
                   Error: new Error()
                 };
           }
         } else {
           throw {
-                RE_EXN_ID: WrongExpression,
+                RE_EXN_ID: NeverHappenedInFilteredTokens,
                 Error: new Error()
               };
         }
-      } else {
-        throw {
-              RE_EXN_ID: WrongExpression,
-              Error: new Error()
-            };
       }
-    } else {
+    };
+  };
+  if (tokens) {
+    var v = makeNode({
+          value: tokens.hd,
+          left: undefined,
+          right: undefined
+        }, tokens.tl).value;
+    if (typeof v === "number") {
       throw {
-            RE_EXN_ID: WrongExpression,
+            RE_EXN_ID: NeverHappenedInFilteredTokens,
             Error: new Error()
           };
     }
+    if (v.TAG === /* Integer */0) {
+      return v._0;
+    }
+    throw {
+          RE_EXN_ID: NeverHappenedInFilteredTokens,
+          Error: new Error()
+        };
   } else {
     throw {
-          RE_EXN_ID: WrongExpression,
+          RE_EXN_ID: NoTokens,
           Error: new Error()
         };
   }
 }
 
+function expr(interpreter) {
+  return execute(Belt_List.keep(extractTokens(interpreter), (function (token) {
+                    if (typeof token === "number") {
+                      return token === 0;
+                    } else {
+                      return true;
+                    }
+                  })));
+}
+
 var Interpreter = {
   WrongExpression: WrongExpression,
+  NeverHappenedInFilteredTokens: NeverHappenedInFilteredTokens,
+  NoTokens: NoTokens,
   make: make,
   getNextSingleToken: getNextSingleToken,
   getNextToken: getNextToken,
   extractTokens: extractTokens,
+  execute: execute,
   expr: expr
 };
 
@@ -240,6 +339,7 @@ function main(param) {
 main(undefined);
 
 exports.Token = Token;
+exports.TokenNode = TokenNode;
 exports.Interpreter = Interpreter;
 exports.main = main;
 /*  Not a pure module */

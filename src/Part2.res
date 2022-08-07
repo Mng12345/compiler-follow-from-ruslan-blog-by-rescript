@@ -1,13 +1,23 @@
 module Token = {
   exception NotToken
   module Operator = {
-    type t = Plus | Subtract
+    type t = Plus | Subtract | Multiply | Divide
   }
   type t = Integer(int) | Operator(Operator.t) | Eof | Whitespace
 }
 
+module TokenNode = {
+  type t = {
+    mutable value: Token.t,
+    mutable left: option<Token.t>,
+    mutable right: option<Token.t>,
+  }
+}
+
 module Interpreter = {
   exception WrongExpression
+  exception NeverHappenedInFilteredTokens
+  exception NoTokens
 
   type t = {
     text: string,
@@ -38,6 +48,12 @@ module Interpreter = {
       | "-" =>
         interpreter.pos = interpreter.pos + 1
         Token.Operator(Token.Operator.Subtract)
+      | "*" =>
+        interpreter.pos = interpreter.pos + 1
+        Token.Operator(Token.Operator.Multiply)
+      | "/" =>
+        interpreter.pos = interpreter.pos + 1
+        Token.Operator(Token.Operator.Divide)
       | "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" =>
         interpreter.pos = interpreter.pos + 1
         char->Belt.Int.fromString->Belt.Option.getUnsafe->Token.Integer
@@ -55,13 +71,12 @@ module Interpreter = {
       switch (left, right) {
       | (None, _) =>
         switch right {
-        | Token.Eof => 
-          Token.Eof
+        | Token.Eof => Token.Eof
         | _ => getNextToken(interpreter, right->Some)
         }
       | (Some(left), _) =>
         switch (left, right) {
-        | (Token.Integer(left), Token.Integer(right)) => 
+        | (Token.Integer(left), Token.Integer(right)) =>
           getNextToken(interpreter, Token.Integer(left * 10 + right)->Some)
         | (Token.Eof, _) => Token.Eof
         | (Token.Integer(_), _)
@@ -89,6 +104,68 @@ module Interpreter = {
     extractTokens_(interpreter, list{})->Belt.List.reverse
   }
 
+  let execute = tokens => {
+    let rec makeNode = (rootNode: TokenNode.t, tokens) => {
+      switch (tokens, rootNode.value) {
+      | (list{}, _) => rootNode
+      | (list{h, ...t}, _) =>
+        switch (rootNode.value, h) {
+        | (Token.Integer(_), Token.Eof) => rootNode
+        | (Token.Integer(_), Token.Operator(_)) =>
+          {
+            value: h,
+            left: rootNode.value->Some,
+            right: None,
+          }->makeNode(t)
+        | (Token.Operator(operator), Token.Integer(right)) =>
+          switch rootNode.left {
+          | None => raise(NeverHappenedInFilteredTokens)
+          | Some(left) =>
+            switch left {
+            | Token.Integer(left) =>
+              switch operator {
+              | Token.Operator.Divide => {
+                  value: Token.Integer(left / right),
+                  left: None,
+                  right: None,
+                }
+              | Token.Operator.Multiply => {
+                  value: Token.Integer(left * right),
+                  left: None,
+                  right: None,
+                }
+              | Token.Operator.Plus => {
+                  value: Token.Integer(left + right),
+                  left: None,
+                  right: None,
+                }
+              | Token.Operator.Subtract => {
+                  value: Token.Integer(left - right),
+                  left: None,
+                  right: None,
+                }
+              }->makeNode(t)
+            | _ => raise(NeverHappenedInFilteredTokens)
+            }
+          }
+        | (Token.Operator(_), _) => raise(NeverHappenedInFilteredTokens)
+        | (Token.Whitespace, _) => raise(NeverHappenedInFilteredTokens)
+        | (Token.Integer(_), Token.Integer(_)) => raise(NeverHappenedInFilteredTokens)
+        | (Token.Integer(_), Token.Whitespace) => raise(NeverHappenedInFilteredTokens)
+        | (Token.Eof, _) => raise(NeverHappenedInFilteredTokens)
+        }
+      }
+    }
+    switch tokens {
+    | list{h, ...t} =>
+      switch makeNode({value: h, left: None, right: None}, t).value {
+      | Token.Integer(v) => v
+      | _ => raise(NeverHappenedInFilteredTokens)
+      }
+    | list{} => raise(NoTokens)
+    }
+  }
+
   let expr = interpreter => {
     let tokens =
       interpreter
@@ -99,23 +176,7 @@ module Interpreter = {
         | _ => true
         }
       )
-    let left = tokens->Belt.List.get(0)
-    let operator = tokens->Belt.List.get(1)
-    let right = tokens->Belt.List.get(2)
-    let end = tokens->Belt.List.get(3)
-    switch (left, operator, right, end) {
-    | (
-        Some(Token.Integer(left)),
-        Some(Token.Operator(operator)),
-        Some(Token.Integer(right)),
-        Some(Token.Eof),
-      ) =>
-      switch operator {
-      | Token.Operator.Plus => left + right
-      | Token.Operator.Subtract => left - right
-      }
-    | _ => raise(WrongExpression)
-    }
+    execute(tokens)
   }
 }
 
